@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Webhook Manager</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            opacity: 0.8;
+            animation: twinkle 3s infinite ease-in-out alternate;
+        }
+
+        @keyframes twinkle {
+            from { opacity: 0.3; }
+            to { opacity: 1; }
+        }
+
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        h2 {
+            margin: 0;
+        }
+
+        p {
+            margin-top: 5px;
+            font-size: 14px;
+            color: lightgray;
+        }
+
+        input {
+            width: 300px;
+            padding: 10px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 5px;
+            outline: none;
+            text-align: center;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            background: red;
+            color: white;
+            text-transform: uppercase;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .button:hover {
+            transform: scale(1.1);
+            filter: brightness(1.2);
+        }
+
+        .button.spam {
+            background: orange;
+        }
+
+        .warning {
+            margin-top: 20px;
+            font-size: 12px;
+            color: gray;
+        }
+
+        .message-box {
+            display: none;
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+
+        .error {
+            background: red;
+            color: white;
+        }
+
+        .success {
+            background: green;
+            color: white;
+        }
+
+        .spam-input {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .auto-spam {
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+    <script>
+        let autoSpamInterval = null;
+
+        function showSpamInput() {
+            document.getElementById("spamInputContainer").style.display = "block";
+        }
+
+        async function handleWebhook(action) {
+            const webhookUrl = document.getElementById("webhookUrl").value;
+            const messageBox = document.getElementById("message");
+            const spamMessage = document.getElementById("spamMessage").value;
+
+            if (!webhookUrl || !webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
+                showMessage("Invalid Webhook", "error");
+                return;
+            }
+
+            try {
+                // Check if webhook is valid
+                const response = await fetch(webhookUrl);
+                if (!response.ok) {
+                    showMessage("Invalid or Deleted Webhook", "error");
+                    return;
+                }
+            } catch {
+                showMessage("Invalid or Unreachable Webhook", "error");
+                return;
+            }
+
+            if (action === 'delete') {
+                try {
+                    const response = await fetch(webhookUrl, { method: "DELETE" });
+                    if (response.ok) {
+                        showMessage("Webhook Deleted", "success");
+                    } else {
+                        showMessage("Failed to Delete Webhook", "error");
+                    }
+                } catch {
+                    showMessage("Error Deleting Webhook", "error");
+                }
+            } 
+            
+            else if (action === 'spam') {
+                if (!spamMessage.trim()) {
+                    showMessage("Enter a message to spam", "error");
+                    return;
+                }
+
+                try {
+                    for (let i = 0; i < 5; i++) {
+                        await fetch(webhookUrl, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ content: spamMessage })
+                        });
+                    }
+                    showMessage("Messages Sent", "success");
+                } catch {
+                    showMessage("Failed to Send Messages", "error");
+                }
+            }
+        }
+
+        function toggleAutoSpam() {
+            const webhookUrl = document.getElementById("webhookUrl").value;
+            const spamMessage = document.getElementById("spamMessage").value;
+            const delay = parseInt(document.getElementById("spamDelay").value) || 1000;
+            const autoSpamBtn = document.getElementById("autoSpamBtn");
+
+            if (!webhookUrl || !webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
+                showMessage("Invalid Webhook", "error");
+                return;
+            }
+
+            if (!spamMessage.trim()) {
+                showMessage("Enter a message to spam", "error");
+                return;
+            }
+
+            if (autoSpamInterval) {
+                clearInterval(autoSpamInterval);
+                autoSpamInterval = null;
+                autoSpamBtn.textContent = "Start Auto Spam";
+                showMessage("Auto Spam Stopped", "error");
+            } else {
+                autoSpamInterval = setInterval(() => {
+                    fetch(webhookUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ content: spamMessage })
+                    }).catch(() => {});
+                }, delay);
+
+                autoSpamBtn.textContent = "Stop Auto Spam";
+                showMessage("Auto Spam Started", "success");
+            }
+        }
+
+        function showMessage(text, type) {
+            const messageBox = document.getElementById("message");
+            messageBox.textContent = text;
+            messageBox.className = `message-box ${type}`;
+            messageBox.style.display = "inline-block";
+
+            setTimeout(() => {
+                messageBox.style.display = "none";
+            }, 3000);
+        }
+
+        function createStars() {
+            for (let i = 0; i < 100; i++) {
+                const star = document.createElement("div");
+                star.classList.add("star");
+                star.style.top = Math.random() * 100 + "vh";
+                star.style.left = Math.random() * 100 + "vw";
+                star.style.animationDuration = Math.random() * 2 + 1 + "s";
+                document.body.appendChild(star);
+            }
+        }
+
+        window.onload = createStars;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h2>Discord Webhook Manager</h2>
+        <p>Made by turtlenopes :D</p>
+        <input type="text" id="webhookUrl" placeholder="Enter Webhook URL">
+        <br>
+        <div class="button delete" onclick="handleWebhook('delete')">Delete</div>
+        <div class="button spam" onclick="showSpamInput()">Spam</div>
+        
+        <div id="spamInputContainer" class="spam-input">
+            <input type="text" id="spamMessage" placeholder="Enter spam message">
+            <input type="number" id="spamDelay" placeholder="Delay (ms)" min="0">
+            <div class="button spam" onclick="handleWebhook('spam')">Send Spam</div>
+            <div class="button spam" id="autoSpamBtn" onclick="toggleAutoSpam()">Start Auto Spam</div>
+        </div>
+
+        <div id="message" class="message-box"></div>
+        <p class="warning">Please don't abuse this tool, this is only for deleting malicious webhooks.</p>
+    </div>
+</body>
+</html>
